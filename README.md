@@ -115,15 +115,6 @@ Optional:
 Work in Progress.
 Issues und Pull Requests sind willkommen.
 
-```
-
-Wenn du willst, kann ich dir noch:
-- :contentReference[oaicite:0]{index=0}  
-- oder :contentReference[oaicite:1]{index=1}  
-
-draufsetzen.
-```
-
 
 ## Referenzen
 
