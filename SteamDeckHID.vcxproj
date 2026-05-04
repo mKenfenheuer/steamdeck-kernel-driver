@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SteamDeckHID.vcxproj
+  KMDF Kernel-Mode Driver – Visual Studio 2022 + WDK
+
+  Requires:
+    Visual Studio 2022 (any edition)
+    Windows Driver Kit matching your SDK version
+    https://learn.microsoft.com/en-us/windows-hardware/drivers/download-the-wdk
+-->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- ======================================================================
+       Project Configurations
+  ======================================================================= -->
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <!-- ======================================================================
+       Global Properties  (identity only – no paths here)
+  ======================================================================= -->
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{3F8A9C12-7B4E-4D21-9E05-A1B2C3D4E5F6}</ProjectGuid>
+    <TemplateGuid>{1bc93793-694f-48fe-9372-81e2b05061a3}</TemplateGuid>
+    <RootNamespace>SteamDeckHID</RootNamespace>
+    <ProjectName>SteamDeckHID</ProjectName>
+    <TargetName>SteamDeckHID</TargetName>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <!-- ======================================================================
+       Configuration: Debug x64
+  ======================================================================= -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>KMDF</DriverType>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+    <DriverWDKVersion>$(KernelModeDriverVersion)</DriverWDKVersion>
+  </PropertyGroup>
+
+  <!-- ======================================================================
+       Configuration: Release x64
+  ======================================================================= -->
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>KMDF</DriverType>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <DriverTargetPlatform>Universal</DriverTargetPlatform>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" />
+  <PropertyGroup Label="UserMacros" />
+
+  <!--
+    Output paths: defined AFTER Microsoft.Cpp.props so the WDK platform props
+    cannot override them.
+  -->
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)bin\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(Configuration)\$(Platform)\</IntDir>
+    <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+  </PropertyGroup>
+
+  <!-- ======================================================================
+       Compiler / Linker  –  Debug
+  ======================================================================= -->
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(ProjectDir)src;
+        $(ProjectDir)bus;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        DBG=1;
+        POOL_NX_OPTIN=1;
+        _WIN64;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <WarningLevel>Level4</WarningLevel>
+      <WarnAsError>false</WarnAsError>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>Disabled</Optimization>
+      <CompileAs>CompileAsC</CompileAs>
+      <AdditionalOptions>/Zi /Od %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        wdmsec.lib;
+        BufferOverflowFastFailK.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+    <Inf>
+      <KmdfVersionNumber>1.33</KmdfVersionNumber>
+      <!-- Pin DriverVer so inf2cat doesn't trip on a future date if the
+           build host clock is ahead of the WDK's accepted window.
+           TimeStamp = DriverVer version, DateStamp = DriverVer date. -->
+      <TimeStamp>1.0.0.1</TimeStamp>
+      <DateStamp>01/01/2024</DateStamp>
+    </Inf>
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
+  </ItemDefinitionGroup>
+
+  <!-- ======================================================================
+       Compiler / Linker  –  Release
+  ======================================================================= -->
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>
+        $(ProjectDir)src;
+        $(ProjectDir)bus;
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        POOL_NX_OPTIN=1;
+        _WIN64;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+      <WarningLevel>Level4</WarningLevel>
+      <WarnAsError>true</WarnAsError>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <Optimization>MaxSpeed</Optimization>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <CompileAs>CompileAsC</CompileAs>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>
+        wdmsec.lib;
+        BufferOverflowFastFailK.lib;
+        %(AdditionalDependencies)
+      </AdditionalDependencies>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+    <Inf>
+      <KmdfVersionNumber>1.33</KmdfVersionNumber>
+      <!-- Pin DriverVer so inf2cat doesn't trip on a future date if the
+           build host clock is ahead of the WDK's accepted window.
+           TimeStamp = DriverVer version, DateStamp = DriverVer date. -->
+      <TimeStamp>1.0.0.1</TimeStamp>
+      <DateStamp>01/01/2024</DateStamp>
+    </Inf>
+    <DriverSign>
+      <FileDigestAlgorithm>sha256</FileDigestAlgorithm>
+    </DriverSign>
+  </ItemDefinitionGroup>
+
+  <!-- ======================================================================
+       Source files
+  ======================================================================= -->
+  <ItemGroup>
+    <ClCompile Include="src\Driver.c" />
+    <ClCompile Include="src\Device.c" />
+    <ClCompile Include="src\Usb.c" />
+    <ClCompile Include="src\Report.c" />
+    <ClCompile Include="src\XInput.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="src\Driver.h" />
+    <ClInclude Include="bus\BusShared.h" />
+  </ItemGroup>
+
+  <!-- ======================================================================
+       INF file (stampinf processes this during build)
+  ======================================================================= -->
+  <ItemGroup>
+    <Inf Include="inf\SteamDeckHID.inf" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+
+  <!--
+    InfVerif.dll is missing from this WDK installation. Override the target with a no-op
+    but keep AfterTargets/BeforeTargets so StampInf (BeforeTargets="InfVerif") and the
+    rest of the build chain (InfVerif BeforeTargets="PreBuildEvent") still execute.
+  -->
+  <Target Name="InfVerif" AfterTargets="StampInf" BeforeTargets="PreBuildEvent" />
+
+  <!--
+    WDK's DriverPackageTarget only adds INF files to FilesToPackage for standalone
+    driver projects. Add the .sys explicitly so inf2cat finds it in $(PackageDir).
+  -->
+  <Target Name="AddDriverBinaryToPackage" BeforeTargets="DriverPackageTarget">
+    <ItemGroup>
+      <FilesToPackage Include="$(TargetPath)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

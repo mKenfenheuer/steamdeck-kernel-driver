@@ -1,0 +1,90 @@
+; ==============================================================================
+; SteamDeckBus.inf
+; ==============================================================================
+;
+; Root-enumerated KMDF bus driver. Spawns ONE virtual Xbox 360 controller PDO
+; that xusb22.sys binds to. SteamDeckHID.sys feeds it XUSB reports via
+; IOCTL_SDBUS_SUBMIT_XUSB on \Device\SteamDeckBus.
+;
+; Hardware ID matched: Root\SteamDeckBus
+;
+; Override default child VID/PID via:
+;   HKLM\SYSTEM\CurrentControlSet\Services\SteamDeckBus\Parameters
+;     VendorId  : REG_DWORD  (0x045E by default - Microsoft Xbox 360 wired)
+;     ProductId : REG_DWORD  (0x028E by default)
+;
+; ==============================================================================
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider    = %Provider%
+DriverVer   = 06/01/2024,1.0.0.1
+CatalogFile = SteamDeckBus.cat
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir   = 12
+CopyFiles.Driver = 12
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+SteamDeckBus.sys = 1,,
+
+[Manufacturer]
+%Provider% = Models, NTamd64, NTamd64.10.0...19041
+
+[Models.NTamd64]
+%SteamDeckBus.DeviceDesc% = SteamDeckBus_Install, Root\SteamDeckBus
+
+[Models.NTamd64.10.0...19041]
+%SteamDeckBus.DeviceDesc% = SteamDeckBus_Install, Root\SteamDeckBus
+
+[SteamDeckBus_Install.NT]
+CopyFiles = CopyFiles.Driver
+
+[CopyFiles.Driver]
+SteamDeckBus.sys,,,0x00004000   ; COPYFLG_IN_USE_RENAME
+
+[SteamDeckBus_Install.NT.HW]
+AddReg = SteamDeckBus_HW_AddReg
+
+[SteamDeckBus_HW_AddReg]
+; SDDL: System full, Admin full -- nobody else.
+HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GA;;;BA)"
+HKR,,"FriendlyName",,%SteamDeckBus.DeviceDesc%
+
+[SteamDeckBus_Install.NT.Services]
+AddService = SteamDeckBus, 0x00000002, SteamDeckBus_Service
+
+[SteamDeckBus_Service]
+DisplayName    = %SteamDeckBus.SVCDESC%
+Description    = %SteamDeckBus.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\SteamDeckBus.sys
+AddReg         = SteamDeckBus_Svc_AddReg
+
+[SteamDeckBus_Svc_AddReg]
+; Default child VID/PID; the .sys reads these on EvtDeviceAdd.
+HKR,Parameters,VendorId,  0x00010001, 0x0000045E
+HKR,Parameters,ProductId, 0x00010001, 0x0000028E
+; Verbose KdPrintEx in debug builds.
+HKLM, SYSTEM\CurrentControlSet\Control\Session Manager\Debug Print Filter, \
+      IHVDRIVER, 0x00010001, 0x0000FFFF
+
+[SteamDeckBus_Install.NT.Wdf]
+KmdfService = SteamDeckBus, SteamDeckBus_WdfSection
+
+[SteamDeckBus_WdfSection]
+KmdfLibraryVersion = $KMDFVERSION$
+
+[Strings]
+Provider                  = "SteamDeck Open Driver Project"
+DiskName                  = "Steam Deck Bus Driver Installation Disk"
+SteamDeckBus.DeviceDesc   = "Steam Deck XInput Bus"
+SteamDeckBus.SVCDESC      = "Steam Deck XInput Bus Driver"

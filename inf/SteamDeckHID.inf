@@ -1,0 +1,277 @@
+; ==============================================================================
+; SteamDeckHID.inf
+; ==============================================================================
+;
+; KMDF USB function driver for the Valve Steam Deck internal controller
+; (codename "Neptune").
+;
+; Architecture:
+;
+;   SteamDeckHID.sys (FDO, us)
+;   usbccgp PDO (MI_02)       <- USB stack below
+;
+; SteamDeckHID is no longer a HID minidriver. It does NOT expose a HID
+; gamepad device to userspace. It reads USB interrupt-IN reports from the
+; Steam Deck's MI_02 interface, translates them, and forwards them to the
+; SteamDeckBus virtual XUSB controller via the kernel-to-kernel IOCTL
+; channel \Device\SteamDeckBus. Games consume the controller as an Xbox 360
+; gamepad through XInput; the native HID device is intentionally absent so
+; games do not see two controllers.
+;
+; The Neptune USB device is a COMPOSITE device that exposes THREE interfaces:
+;
+;   Interface 0  (MI_00)  –  Emulated HID Keyboard   (bInterfaceProtocol=1)
+;   Interface 1  (MI_01)  –  Emulated HID Mouse       (bInterfaceProtocol=2)
+;   Interface 2  (MI_02)  –  Raw Gamepad / Vendor HID (bInterfaceProtocol=0)
+;
+; This single INF handles ALL of them:
+;
+;   MI_00  →  null driver       (prevents kbdhid.sys / Lizard Mode leakage)
+;   MI_01  →  null driver       (prevents mouhid.sys / Lizard Mode leakage)
+;   MI_02  →  SteamDeckHID.sys  (USB function driver, no HID exposure)
+;
+; The composite device root (USB\VID_28DE&PID_1205) is managed by usbccgp.sys
+; which Windows loads automatically – we reference but do not replace it.
+;
+; ==============================================================================
+; Hardware IDs matched
+; ==============================================================================
+;   USB\VID_28DE&PID_1205                    composite root
+;   USB\VID_28DE&PID_1205&MI_00              keyboard interface  (nulled)
+;   USB\VID_28DE&PID_1205&MI_00&Col01        keyboard collection (nulled)
+;   USB\VID_28DE&PID_1205&MI_01              mouse interface     (nulled)
+;   USB\VID_28DE&PID_1205&MI_01&Col01        mouse collection    (nulled)
+;   USB\VID_28DE&PID_1205&MI_02              gamepad interface   (OUR DRIVER)
+;
+; ==============================================================================
+; HOW TO BUILD THE CATALOG
+; ==============================================================================
+;   inf2cat /driver:<dir_containing_this_inf> /os:10_X64
+;
+; ==============================================================================
+; HOW TO TEST-SIGN
+; ==============================================================================
+;   1.  bcdedit /set testsigning on   (reboot required)
+;   2.  signtool sign /fd sha256 /v /s TestCertStore /n "SteamDeckTest"
+;           /t http://timestamp.digicert.com SteamDeckHID.cat
+;   3.  pnputil /add-driver SteamDeckHID.inf /install
+;
+; NOTE: WdfCoInstaller is intentionally absent. KMDF 1.33 is inbox on
+;       Windows 10 19041+ and co-installers are incompatible with PnpLockdown.
+;
+; ==============================================================================
+
+[Version]
+Signature        = "$WINDOWS NT$"
+Class            = System
+ClassGuid        = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider         = %Provider%
+DriverVer        = 06/01/2024,1.0.0.1
+CatalogFile      = SteamDeckHID.cat
+PnpLockdown      = 1
+
+; ------------------------------------------------------------------------------
+; Destination directories
+;   12 = %SystemRoot%\System32\drivers
+;   11 = %SystemRoot%\System32
+; ------------------------------------------------------------------------------
+[DestinationDirs]
+DefaultDestDir           = 12
+CopyFiles.Driver         = 12
+
+; ------------------------------------------------------------------------------
+; Source disk / files
+; ------------------------------------------------------------------------------
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+SteamDeckHID.sys = 1,,
+
+
+; ==============================================================================
+; MANUFACTURER / MODELS
+; ==============================================================================
+
+[Manufacturer]
+%Valve% = Valve_Models, NTamd64, NTamd64.10.0...19041
+
+; --------------------------------------------------------------------------
+; Models table  –  x64 generic (Windows 10+)
+; --------------------------------------------------------------------------
+[Valve_Models.NTamd64]
+%Composite_Desc%  = Composite_Install,    USB\VID_28DE&PID_1205
+%Keyboard_Desc%   = Null_Install,         USB\VID_28DE&PID_1205&MI_00
+%Keyboard_Desc%   = Null_Install,         USB\VID_28DE&PID_1205&MI_00&Col01
+%Mouse_Desc%      = Null_Install,         USB\VID_28DE&PID_1205&MI_01
+%Mouse_Desc%      = Null_Install,         USB\VID_28DE&PID_1205&MI_01&Col01
+%Gamepad_Desc%    = SteamDeckHID_Install, USB\VID_28DE&PID_1205&MI_02
+
+; --------------------------------------------------------------------------
+; Models table  –  Windows 10 1903 / Windows 11 (build ≥ 19041)
+; Explicit decoration required by infverif /w10 /strict
+; --------------------------------------------------------------------------
+[Valve_Models.NTamd64.10.0...19041]
+%Composite_Desc%  = Composite_Install,    USB\VID_28DE&PID_1205
+%Keyboard_Desc%   = Null_Install,         USB\VID_28DE&PID_1205&MI_00
+%Keyboard_Desc%   = Null_Install,         USB\VID_28DE&PID_1205&MI_00&Col01
+%Mouse_Desc%      = Null_Install,         USB\VID_28DE&PID_1205&MI_01
+%Mouse_Desc%      = Null_Install,         USB\VID_28DE&PID_1205&MI_01&Col01
+%Gamepad_Desc%    = SteamDeckHID_Install, USB\VID_28DE&PID_1205&MI_02
+
+
+; ==============================================================================
+; COMPOSITE DEVICE  –  USB\VID_28DE&PID_1205
+; Reference usbccgp.sys (inbox).  No files copied.
+; ==============================================================================
+
+[Composite_Install.NT]
+; Nothing to copy – usbccgp.sys is an inbox driver.
+
+[Composite_Install.NT.Services]
+; SPSVCINST_ASSOCSERVICE (0x2) – marks usbccgp as the primary service for this device node
+AddService = usbccgp, 0x00000002, Composite_Svc_Ref
+
+[Composite_Svc_Ref]
+DisplayName    = %usbccgp_Desc%
+ServiceType    = 1
+StartType      = 3
+ErrorControl   = 1
+ServiceBinary  = %12%\usbccgp.sys
+
+[Composite_Install.NT.HW]
+AddReg = Composite_HW_AddReg
+
+[Composite_HW_AddReg]
+; Ensure usbccgp enumerates child interfaces
+HKR,,"EnumBusRelations", 0x00010001, 1
+
+
+; ==============================================================================
+; NULL INSTALL  –  MI_00 (keyboard) and MI_01 (mouse)
+;
+; Parking a null service prevents Windows from attaching kbdhid.sys / mouhid.sys
+; to these interfaces, which would produce spurious keyboard/mouse events even
+; after Lizard Mode is disabled by our driver on MI_02.
+; ==============================================================================
+
+[Null_Install.NT]
+; No files to copy.
+
+[Null_Install.NT.HW]
+AddReg = Null_HW_AddReg
+
+[Null_HW_AddReg]
+; CONFIGFLAG_DISABLED (0x1) prevents Windows from starting a driver
+HKR,,"ConfigFlags",       0x00010001, 0x00000001
+; Mark as not requiring a driver (avoids "driver not found" balloon)
+HKR,,"NoInstallClass",    0x00010001, 1
+
+[Null_Install.NT.Services]
+; Empty service = no driver loaded on this interface
+AddService = , 0x00000002
+
+
+; ==============================================================================
+; STEAMDECK HID  –  MI_02 (Raw Gamepad)
+;
+; Plain USB function driver. No mshidkmdf, no hidclass, no HID exposure to
+; userspace. The driver only consumes USB interrupt reports and forwards them
+; to \Device\SteamDeckBus, which presents the controller as a virtual Xbox
+; 360 gamepad via xusb22.sys.
+;
+;   SteamDeckHID.sys (FDO, us)
+;   usbccgp PDO (MI_02)
+; ==============================================================================
+
+[SteamDeckHID_Install.NT]
+CopyFiles = CopyFiles.Driver
+
+[CopyFiles.Driver]
+; 0x4000 = COPYFLG_IN_USE_RENAME  (handles running-driver updates)
+SteamDeckHID.sys,,,0x00004000
+
+; ------------------------------------------------------------------------------
+; Hardware registry settings
+; ------------------------------------------------------------------------------
+[SteamDeckHID_Install.NT.HW]
+AddReg  = SteamDeckHID_HW_AddReg
+
+[SteamDeckHID_HW_AddReg]
+; ── Security: Authenticated Users get read+write, no admin needed ─────────────
+HKR,,Security,,"D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GRGW;;;AU)"
+
+; ── Power management ──────────────────────────────────────────────────────────
+HKR,,"WakeEnable",                           0x00010001, 1
+HKR,,"EnhancedPowerManagementEnabled",       0x00010001, 1
+HKR,,"SelectiveSuspendEnabled",              0x00010001, 1
+; Idle timeout: 10 000 ms = 10 seconds
+HKR,,"SelectiveSuspendIdleTimeout",          0x00010001, 10000
+
+; ── FILE_DEVICE_SECURE_OPEN ensures correct security on CreateFile ────────────
+HKR,,"DeviceCharacteristics",               0x00010001, 0x00000100
+
+; ── Allow multiple concurrent readers (games + test tools) ───────────────────
+HKR,,"Exclusive",                            0x00010001, 0
+
+; ── Friendly name shown in Device Manager ────────────────────────────────────
+HKR,,"FriendlyName",,                        %Gamepad_Desc%
+
+; ------------------------------------------------------------------------------
+; Service installation
+;
+; SPSVCINST_ASSOCSERVICE (0x2) marks SteamDeckHID as the primary service for
+; this device node — i.e. we are the function driver.
+; ------------------------------------------------------------------------------
+[SteamDeckHID_Install.NT.Services]
+AddService = SteamDeckHID, 0x00000002, SteamDeckHID_Svc
+
+[SteamDeckHID_Svc]
+DisplayName    = %ServiceDisplay%
+Description    = %ServiceDesc%
+ServiceType    = 1          ; SERVICE_KERNEL_DRIVER
+StartType      = 3          ; SERVICE_DEMAND_START
+ErrorControl   = 1          ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\SteamDeckHID.sys
+AddReg         = SteamDeckHID_Svc_AddReg
+
+[SteamDeckHID_Svc_AddReg]
+; Enable verbose KdPrintEx output in debug builds.
+; Remove this key (or set to 0) for production/release.
+HKLM, SYSTEM\CurrentControlSet\Control\Session Manager\Debug Print Filter, \
+      IHVDRIVER, 0x00010001, 0x0000FFFF
+
+; ------------------------------------------------------------------------------
+; WDF service section – links service to KMDF runtime
+; ------------------------------------------------------------------------------
+[SteamDeckHID_Install.NT.Wdf]
+KmdfService = SteamDeckHID, SteamDeckHID_Wdf_Section
+
+[SteamDeckHID_Wdf_Section]
+KmdfLibraryVersion = $KMDFVERSION$
+
+
+; ==============================================================================
+; STRINGS
+; ==============================================================================
+
+[Strings]
+Provider         = "SteamDeck Open Driver Project"
+Valve            = "Valve Corporation"
+DiskName         = "Steam Deck HID Driver Installation Disk"
+
+Composite_Desc   = "Steam Deck Controller (Composite Device)"
+Keyboard_Desc    = "Steam Deck Controller (Keyboard Interface - disabled)"
+Mouse_Desc       = "Steam Deck Controller (Mouse Interface - disabled)"
+Gamepad_Desc     = "Steam Deck Controller (USB Function Driver)"
+
+ServiceDisplay   = "Steam Deck HID Function Driver"
+ServiceDesc      = "KMDF USB function driver for the Valve Neptune (Steam Deck) \
+                    internal gamepad. Disables Lizard Mode and forwards reports \
+                    to SteamDeckBus for XInput exposure."
+
+usbccgp_Desc     = "USB Composite Device"
+
+; Standard HID device interface GUID {4D1E55B2-F16F-11CF-88CB-001111000030}
+GUID_DEVINTERFACE_HID = "{4D1E55B2-F16F-11CF-88CB-001111000030}"
+

@@ -1,0 +1,33 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.aps
+*.ncb
+*.sdf
+*.opensdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+ipch/
+
+# WDK / Driver signing
+*.cer
+*.pfx
+*.cat
+
+# Installer output
+installer/*.exe
+
+# Tools (populated at build time)
+tools/SteamDeckTest.cer
+tools/WdfCoInstaller*.dll
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
